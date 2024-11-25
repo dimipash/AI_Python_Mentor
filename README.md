@@ -4,7 +4,7 @@
 
 An intelligent, AI-powered Python learning platform that adapts to your skill level.
 
-[![AI Python Mentor](https://github.com/dimipash/AI_Python_Mentor/screenshots\screenshot.jpg)] 
+[![AI Python Mentor](https://github.com/dimipash/AI_Python_Mentor/blob/main/screenshots/screenshot.jpg)] 
 
 </div>
 
