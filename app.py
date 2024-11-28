@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from typing import Optional
+from typing import Optional, Dict, Any, List, Tuple
 import google.generativeai as genai
 from dotenv import load_dotenv
 from quiz_handler import QuizHandler
@@ -15,40 +15,51 @@ from constants import (
 
 
 class PythonLearningApp:
-    def __init__(self):
-        self._setup_page_config()
-        self._initialize_session_state()
-        self._setup_gemini()
-        self._apply_styling()
+    """
+    Main application class for the Python Learning Assistant.
+    Handles all learning modes and UI interactions.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the application with required configurations."""
+        self._setup_environment()
         self.difficulty = "Beginner"
 
-    def _setup_page_config(self) -> None:
-        """Configure initial Streamlit page settings."""
+    def _setup_environment(self) -> None:
+        """Set up all necessary configurations and states."""
+        self._configure_page()
+        self._initialize_states()
+        self._setup_ai()
+        self._apply_theme()
+
+    def _configure_page(self) -> None:
+        """Configure Streamlit page settings."""
         st.set_page_config(
             page_title="Python Learning Assistant",
             page_icon="🐍",
             layout="wide",
         )
 
-    def _initialize_session_state(self) -> None:
-        """Initialize Streamlit session state variables."""
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-
-        if "quiz_state" not in st.session_state:
-            st.session_state.quiz_state = {
+    def _initialize_states(self) -> None:
+        """Initialize session state variables."""
+        default_states = {
+            "messages": [],
+            "quiz_state": {
                 "active": False,
                 "current_question": 0,
                 "questions": [],
                 "score": 0,
                 "total_questions": 0,
                 "answered": False,
-            }
+            },
+            "page": "home",
+        }
 
-        if "page" not in st.session_state:
-            st.session_state.page = "home"
+        for key, default_value in default_states.items():
+            if key not in st.session_state:
+                st.session_state[key] = default_value
 
-    def _setup_gemini(self) -> None:
+    def _setup_ai(self) -> None:
         """Configure Gemini AI with API key."""
         load_dotenv()
         api_key = os.getenv("GEMINI_API_KEY")
@@ -56,70 +67,20 @@ class PythonLearningApp:
             raise ValueError("GEMINI_API_KEY not found in environment variables")
         genai.configure(api_key=api_key)
 
-    def _apply_styling(self) -> None:
-        """Apply custom styling to the app."""
+    def _apply_theme(self) -> None:
+        """Apply custom styling to the application."""
         st.markdown(get_github_dark_theme(), unsafe_allow_html=True)
 
-    def create_gemini_model(self) -> genai.GenerativeModel:
-        """Create and configure Gemini model instance."""
+    def create_ai_model(self) -> genai.GenerativeModel:
+        """Create and return configured Gemini model instance."""
         return genai.GenerativeModel(
             model_name="gemini-exp-1114",
             generation_config=GEMINI_CONFIG,
             system_instruction=SYSTEM_INSTRUCTION,
         )
 
-    def render_welcome_screen(self) -> None:
-        """Render an engaging welcome screen."""
-        st.markdown(
-            """
-            <div class="animate-fade-in">
-                <h1 style='text-align: center; color: #58a6ff;'>🐍 Python Learning Assistant</h1>
-                <div style='text-align: center; margin: 2rem 0;'>
-                    <p style='font-size: 1.2rem;'>Your personal AI-powered Python tutor</p>
-                </div>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-        # Feature cards
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown(
-                """
-                <div class="stCard">
-                    <h3>📚 Interactive Learning</h3>
-                    <p>Learn Python through conversations, exercises, and quizzes</p>
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-        with col2:
-            st.markdown(
-                """
-                <div class="stCard">
-                    <h3>🎯 Personalized Path</h3>
-                    <p>Adaptive content based on your skill level and goals</p>
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-        with col3:
-            st.markdown(
-                """
-                <div class="stCard">
-                    <h3>💻 Hands-on Practice</h3>
-                    <p>Real-world examples and immediate feedback</p>
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
     def render_navigation(self) -> None:
-        """Render navigation menu."""
+        """Render the navigation bar."""
         st.markdown(
             """
             <div class="nav-container">
@@ -129,151 +90,110 @@ class PythonLearningApp:
             unsafe_allow_html=True,
         )
 
-    def render_sidebar(self) -> tuple[str, str]:
-        """Render an improved sidebar with better UX."""
+    def render_sidebar(self) -> Tuple[str, str]:
+        """
+        Render sidebar with learning mode and difficulty selection.
+        Returns:
+            Tuple containing selected learning mode and difficulty level
+        """
         with st.sidebar:
-            try:
-                st.markdown(
-                    """
-                    <div style='text-align: center; margin-bottom: 1rem;'>
-                        <h2>Learning Dashboard</h2>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+            learning_mode = st.selectbox(
+                "🎯 Choose Your Learning Mode",
+                options=LEARNING_MODES,
+                key="learning_mode_select",
+            )
 
-                # Format progress number as string
-                progress = "75"  # or calculate actual progress
-                st.markdown(
-                    f"""
-                    <div class="progress-card">
-                        <div class="progress-number">{progress}%</div>
-                        <p>Learning Progress</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+            difficulty = st.select_slider(
+                "📊 Select Difficulty Level",
+                options=DIFFICULTY_LEVELS,
+                value="Beginner",
+            )
 
-                st.markdown("<div style='margin: 2rem 0;'></div>", unsafe_allow_html=True)
-
-                learning_mode = st.selectbox(
-                    "🎯 Choose Your Learning Mode",
-                    options=LEARNING_MODES,
-                    key="learning_mode_select",
-                )
-
-                difficulty = st.select_slider(
-                    "📊 Select Difficulty Level",
-                    options=DIFFICULTY_LEVELS,
-                    value="Beginner",
-                )
-
-                st.markdown(
-                    """
-                    <div class="tooltip" style='text-align: center; margin-top: 1rem;'>
-                        ℹ️ Need help choosing?
-                        <span class="tooltiptext">Select based on your Python experience</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                return learning_mode, difficulty
-
-            except Exception as e:
-                st.error("⚠️ Error loading sidebar components")
-                st.error(f"Details: {str(e)}")
-                # Provide fallback values in case of error
-                return LEARNING_MODES[0], DIFFICULTY_LEVELS[0]  # Return default values
-
+            return learning_mode, difficulty
 
     def handle_chat_mode(self) -> None:
-        """Enhanced chat mode with better UX."""
+        """Handle chat-based learning interactions."""
         st.markdown(
             """
             <div class="chat-container">
                 <h2>💬 Chat with Your Python Tutor</h2>
                 <p>Ask questions, get explanations, and solve problems together.</p>
             </div>
-        """,
+            """,
             unsafe_allow_html=True,
         )
 
-        # Control buttons with improved styling
+        self._render_chat_controls()
+        self._display_chat_history()
+        
+        user_input = st.chat_input(
+            "Ask anything about Python...",
+            key="chat_input_field",
+        )
+        
+        if user_input:
+            self._process_chat_input(user_input)
+
+    def _render_chat_controls(self) -> None:
+        """Render chat control buttons."""
         col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 New Chat", key="new_chat_btn", use_container_width=True):
-                st.session_state.messages = []
-                welcome_msg = (
-                    "👋 Hi! I'm your Python tutor. What would you like to learn today?"
-                )
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": welcome_msg}
-                )
-                st.rerun()
+        
+        if col1.button("🔄 New Chat", key="new_chat_btn", use_container_width=True):
+            self._reset_chat()
+            
+        if col2.button("🗑️ Clear Chat", key="clear_chat_btn", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
 
-        with col2:
-            if st.button(
-                "🗑️ Clear Chat", key="clear_chat_btn", use_container_width=True
-            ):
-                st.session_state.messages = []
-                st.rerun()
+    def _reset_chat(self) -> None:
+        """Reset chat to initial state."""
+        st.session_state.messages = []
+        welcome_msg = "👋 Hi! I'm your Python tutor. What would you like to learn today?"
+        st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
+        st.rerun()
 
-        # Chat messages with improved styling
+    def _display_chat_history(self) -> None:
+        """Display chat message history."""
         for message in st.session_state.messages:
-            message_class = (
-                "user-message" if message["role"] == "user" else "assistant-message"
-            )
+            message_class = "user-message" if message["role"] == "user" else "assistant-message"
             st.markdown(
                 f"""
                 <div class="message {message_class}">
                     {message["content"]}
                 </div>
-            """,
+                """,
                 unsafe_allow_html=True,
             )
 
-        # Chat input with placeholder
-        user_input = st.chat_input(
-            "Ask anything about Python...",
-            key="chat_input_field",
-        )
-
-    def display_loading_animation(self) -> None:
-        """Display a loading animation."""
-        st.markdown(
-            """
-            <div style='text-align: center;'>
-                <div class="loading"></div>
-                <p>Processing your request...</p>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    # Modify _process_chat_input to handle JSON serialization safely
     def _process_chat_input(self, user_input: str) -> None:
-        """Process user chat input and generate response."""
+        """
+        Process user input and generate AI response.
+        
+        Args:
+            user_input: User's message text
+        """
         try:
-            # Ensure message is JSON-serializable
             st.session_state.messages.append({
                 "role": "user",
-                "content": str(user_input)  # Ensure content is string
+                "content": str(user_input)
             })
 
-            model = self.create_gemini_model()
+            model = self.create_ai_model()
             chat = model.start_chat(history=[])
             response = chat.send_message(user_input)
-
-            # Ensure response is properly serialized
-            response_text = str(response.text)
-            self._display_chat_messages(response_text)
+            
+            self._display_chat_messages(str(response.text))
+            
         except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-
+            st.error(f"Error processing message: {str(e)}")
 
     def _display_chat_messages(self, response_text: str) -> None:
-        """Display chat messages in the UI."""
+        """
+        Display chat messages in the UI.
+        
+        Args:
+            response_text: AI model's response text
+        """
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.write(message["content"])
@@ -281,9 +201,198 @@ class PythonLearningApp:
         with st.chat_message("assistant"):
             st.write(response_text)
 
-        st.session_state.messages.append(
-            {"role": "assistant", "content": response_text}
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": response_text
+        })
+
+    def handle_code_review_mode(self) -> None:
+        """Handle code review functionality."""
+        self._render_code_review_header()
+        code = self._get_code_input()
+        
+        if st.button("Review Code", key="review_code_btn"):
+            self._process_code_review(code)
+
+    def _render_code_review_header(self) -> None:
+        """Render code review section header."""
+        st.markdown(
+            """
+            <div class="code-review-container">
+                <h2>👨‍💻 Code Review Assistant</h2>
+                <p>Submit your Python code for review and get instant feedback.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+
+    def _get_code_input(self) -> str:
+        """Get code input from user."""
+        return st.text_area(
+            "Paste your Python code here:",
+            height=300,
+            placeholder="# Enter your Python code here...",
+        )
+
+    def _process_code_review(self, code: str) -> None:
+        """
+        Process code review request.
+        
+        Args:
+            code: User's submitted code
+        """
+        if not code:
+            st.warning("Please enter some code to review.")
+            return
+
+        try:
+            review_prompt = self._create_review_prompt(code)
+            model = self.create_ai_model()
+            chat = model.start_chat(history=[])
+            response = chat.send_message(review_prompt)
+
+            st.markdown("### Review Results:")
+            st.write(response.text)
+            
+        except Exception as e:
+            st.error(f"Code review error: {str(e)}")
+
+    def _create_review_prompt(self, code: str) -> str:
+        """
+        Create prompt for code review.
+        
+        Args:
+            code: Code to be reviewed
+            
+        Returns:
+            Formatted prompt string
+        """
+        return f"""
+        Please review this Python code and provide feedback on:
+        1. Code style and PEP 8 compliance
+        2. Potential bugs or issues
+        3. Performance improvements
+        4. Best practices suggestions
+
+        Code to review:
+        {code}
+        """
+
+    def handle_concept_mode(self) -> None:
+        """Handle Python concepts learning mode."""
+        self._render_concept_header()
+        selected_concept = self._get_concept_selection()
+        
+        if selected_concept:
+            self._process_concept_learning(selected_concept)
+
+    def _render_concept_header(self) -> None:
+        """Render concepts section header."""
+        st.markdown(
+            """
+            <div class="concepts-container">
+                <h2>📚 Python Concepts</h2>
+                <p>Learn Python concepts with detailed explanations and examples.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    def _get_concept_selection(self) -> str:
+        """Get selected concept from user."""
+        return st.selectbox(
+            "Choose a concept to learn:",
+            options=PYTHON_CONCEPTS,
+        )
+
+    def _process_concept_learning(self, concept: str) -> None:
+        """
+        Process concept learning request.
+        
+        Args:
+            concept: Selected Python concept
+        """
+        try:
+            learning_prompt = self._create_learning_prompt(concept)
+            model = self.create_ai_model()
+            chat = model.start_chat(history=[])
+            
+            # Get concept explanation
+            response = chat.send_message(learning_prompt)
+            st.markdown("### Learn & Practice")
+            st.write(response.text)
+
+            # Handle practice section
+            self._handle_practice_section(concept, chat)
+            
+        except Exception as e:
+            st.error(f"Error loading concept: {str(e)}")
+
+    def _create_learning_prompt(self, concept: str) -> str:
+        """
+        Create prompt for concept learning.
+        
+        Args:
+            concept: Selected concept
+            
+        Returns:
+            Formatted prompt string
+        """
+        return f"""
+        Explain {concept} in Python for a {self.difficulty.lower()} level programmer.
+        Include:
+        1. Clear explanation
+        2. Simple examples
+        3. Common use cases
+        4. Best practices
+        5. A practice exercise
+        
+        Make the explanation appropriate for {self.difficulty.lower()} level.
+        """
+
+    def _handle_practice_section(self, concept: str, chat: Any) -> None:
+        """
+        Handle the practice section of concept learning.
+        
+        Args:
+            concept: Current concept being learned
+            chat: Active chat instance
+        """
+        st.markdown("### Try It Yourself")
+        user_code = st.text_area(
+            "Write your code here:",
+            height=200,
+            key="concept_practice_area",
+        )
+
+        if st.button("Check My Code", key="check_concept_code"):
+            if user_code:
+                self._provide_code_feedback(concept, user_code, chat)
+            else:
+                st.warning("Please write some code to get feedback.")
+
+    def _provide_code_feedback(self, concept: str, code: str, chat: Any) -> None:
+        """
+        Provide feedback on practice code.
+        
+        Args:
+            concept: Current concept
+            code: User's practice code
+            chat: Active chat instance
+        """
+        check_prompt = f"""
+        Review this code for the concept of {concept}.
+        Code: {code}
+        
+        Provide:
+        1. Is it correct implementation?
+        2. What can be improved?
+        3. Suggestions for better understanding
+        """
+        
+        feedback = chat.send_message(check_prompt)
+        st.markdown("### Feedback")
+        st.write(feedback.text)
 
     def run(self) -> None:
         """Run the main application."""
@@ -295,102 +404,17 @@ class PythonLearningApp:
 
         learning_mode, self.difficulty = self.render_sidebar()
 
-        if learning_mode == "Chat with Tutor":
-            self.handle_chat_mode()
-        elif learning_mode == "Quiz Mode":
-            quiz_handler = QuizHandler()
-            self.handle_quiz_mode(quiz_handler)
+        # Handle different learning modes
+        mode_handlers = {
+            "Chat with Tutor": self.handle_chat_mode,
+            "Quiz Mode": lambda: self.handle_quiz_mode(QuizHandler()),
+            "Code Review": self.handle_code_review_mode,
+            "Python Concepts": self.handle_concept_mode,
+        }
 
-    def handle_quiz_mode(self, quiz_handler: QuizHandler) -> None:
-        """Handle Quiz Mode functionality."""
-        if not st.session_state.quiz_state["active"]:
-            self._setup_new_quiz(quiz_handler)
-        else:
-            self._handle_active_quiz(quiz_handler)
-
-    def _setup_new_quiz(self, quiz_handler: QuizHandler) -> None:
-        """Setup a new quiz session."""
-        try:
-            st.info("Test your Python knowledge with our interactive quizzes!")
-            topics = quiz_handler.get_quiz_topics(self.difficulty)
-
-            if topics:
-                selected_topic = st.selectbox("Select Topic:", topics)
-                num_questions = st.slider("Number of Questions:", 1, 10, 5)
-
-                if st.button("Start Quiz", key="start_quiz_btn"):
-                    questions = quiz_handler.generate_quiz(
-                        self.difficulty, selected_topic, num_questions
-                    )
-                    # Ensure all data is JSON-serializable
-                    st.session_state.quiz_state = {
-                        "active": bool(True),
-                        "current_question": int(0),
-                        "questions": [dict(q) for q in questions],  # Ensure questions are dicts
-                        "score": int(0),
-                        "total_questions": int(len(questions)),
-                        "answered": bool(False),
-                    }
-                    st.rerun()
-        except Exception as e:
-            st.error(f"Quiz setup error: {str(e)}")
-
-
-    def _handle_active_quiz(self, quiz_handler: QuizHandler) -> None:
-        """Handle an active quiz session."""
-        current_q = st.session_state.quiz_state["current_question"]
-        questions = st.session_state.quiz_state["questions"]
-
-        if current_q < len(questions):
-            question = questions[current_q]
-            st.write(f"Question {current_q + 1} of {len(questions)}:")
-            st.write(question["question"])
-
-            option = st.radio(
-                "Select your answer:", question["options"], key=f"q_{current_q}"
-            )
-
-            selected_index = question["options"].index(option)
-
-            if not st.session_state.quiz_state["answered"]:
-                if st.button("Submit Answer", key="submit_answer_btn"):
-                    result = quiz_handler.check_answer(question, selected_index)
-
-                    if result["is_correct"]:
-                        st.success("Correct! 🎉")
-                        st.session_state.quiz_state["score"] += 1
-                    else:
-                        st.error(
-                            f"Incorrect. The correct answer was: {result['correct_answer']}"
-                        )
-
-                    st.info(f"Explanation: {result['explanation']}")
-                    st.session_state.quiz_state["answered"] = True
-                    st.rerun()
-
-            else:
-                if st.button("Next Question", key="next_question_btn"):
-                    st.session_state.quiz_state["current_question"] += 1
-                    st.session_state.quiz_state["answered"] = False
-                    st.rerun()
-
-        else:
-            final_score = quiz_handler.calculate_score(
-                st.session_state.quiz_state["score"],
-                st.session_state.quiz_state["total_questions"],
-            )
-
-            st.success(f"Quiz Completed! Your Score: {final_score:.1f}%")
-            if st.button("Start New Quiz", key="new_quiz_btn"):
-                st.session_state.quiz_state["active"] = False
-                st.rerun()
-
-    def handle_quiz_mode(self, quiz_handler: QuizHandler) -> None:
-        """Handle Quiz Mode functionality."""
-        if not st.session_state.quiz_state["active"]:
-            self._setup_new_quiz(quiz_handler)
-        else:
-            self._handle_active_quiz(quiz_handler)
+        handler = mode_handlers.get(learning_mode)
+        if handler:
+            handler()
 
 
 if __name__ == "__main__":

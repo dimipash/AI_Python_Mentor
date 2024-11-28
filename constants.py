@@ -11,6 +11,24 @@ LEARNING_MODES: Tuple[str, ...] = (
     "Progress Dashboard",
 )
 
+PYTHON_CONCEPTS = [
+    "Variables and Data Types",
+    "Control Flow (if/else)",
+    "Loops (for/while)",
+    "Functions",
+    "Lists and List Comprehensions",
+    "Dictionaries",
+    "Sets and Tuples",
+    "Object-Oriented Programming",
+    "Exception Handling",
+    "File Handling",
+    "Modules and Packages",
+    "Lambda Functions",
+    "Decorators",
+    "Generators",
+    "Context Managers",
+]
+
 # Difficulty levels
 DIFFICULTY_LEVELS: Tuple[str, ...] = ("Beginner", "Intermediate", "Advanced")
 
