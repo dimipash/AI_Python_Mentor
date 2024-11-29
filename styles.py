@@ -1,191 +1,110 @@
 def get_github_dark_theme():
     return """
     <style>
-        /* Modern Dark Theme */
+        /* GitHub Dark Theme Colors */
         :root {
-            --main-bg-color: #0d1117;
-            --secondary-bg: #161b22;
-            --text-color: #c9d1d9;
-            --accent-color: #58a6ff;
-            --success-color: #238636;
-            --warning-color: #9e6a03;
-            --error-color: #da3633;
-            --border-color: #30363d;
+            --color-canvas-default: #0d1117;
+            --color-canvas-subtle: #161b22;
+            --color-border-default: #30363d;
+            --color-border-muted: #21262d;
+            --color-accent-fg: #58a6ff;
+            --color-fg-default: #c9d1d9;
+            --color-fg-muted: #8b949e;
+            --color-success-fg: #3fb950;
+            --color-danger-fg: #f85149;
+            --color-attention-fg: #d29922;
         }
 
-        /* General styling */
+        /* Base Styles */
         .stApp {
-            background-color: var(--main-bg-color);
-            color: var(--text-color);
+            background-color: var(--color-canvas-default);
+            color: var(--color-fg-default);
         }
 
-        /* Navigation */
+        /* Header & Navigation */
         .nav-container {
-            background-color: var(--secondary-bg);
+            background-color: var(--color-canvas-subtle);
+            border-bottom: 1px solid var(--color-border-default);
             padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .nav-link {
-            color: var(--accent-color) !important;
-            text-decoration: none;
-            font-weight: 600;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            transition: all 0.3s ease;
-        }
-
-        .nav-link:hover {
-            background-color: rgba(88, 166, 255, 0.1);
+            margin-bottom: 1.5rem;
         }
 
         /* Cards */
-        .stCard {
-            background-color: var(--secondary-bg);
-            border-radius: 10px;
-            padding: 1.5rem;
-            border: 1px solid var(--border-color);
+        .content-card {
+            background-color: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 6px;
+            padding: 1rem;
             margin: 1rem 0;
-            transition: transform 0.2s ease;
-        }
-
-        .stCard:hover {
-            transform: translateY(-2px);
         }
 
         /* Buttons */
         .stButton button {
+            background-color: #238636 !important;
+            color: #ffffff !important;
             border-radius: 6px !important;
-            padding: 0.5rem 1rem !important;
-            font-weight: 600 !important;
-            transition: all 0.3s ease !important;
+            border: 1px solid rgba(240,246,252,0.1) !important;
+            padding: 5px 16px !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            transition: all 0.2s ease !important;
         }
 
-        .primary-btn {
-            background-color: var(--accent-color) !important;
-            color: white !important;
+        .stButton button:hover {
+            background-color: #2ea043 !important;
         }
 
-        .success-btn {
-            background-color: var(--success-color) !important;
-            color: white !important;
-        }
-
-        /* Chat container */
-        .chat-container {
-            background-color: var(--secondary-bg);
-            border-radius: 10px;
-            padding: 1rem;
-            margin: 1rem 0;
-            border: 1px solid var(--border-color);
-        }
-
-        .message {
-            padding: 0.8rem;
-            margin: 0.5rem 0;
-            border-radius: 8px;
+        /* Chat Messages */
+        .chat-message {
+            padding: 8px 16px;
+            margin: 4px 0;
+            border-radius: 6px;
         }
 
         .user-message {
-            background-color: rgba(88, 166, 255, 0.1);
-            margin-left: 2rem;
+            background-color: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-muted);
+            margin-left: 24px;
         }
 
         .assistant-message {
-            background-color: rgba(35, 134, 54, 0.1);
-            margin-right: 2rem;
+            background-color: rgba(88, 166, 255, 0.1);
+            border: 1px solid var(--color-border-muted);
+            margin-right: 24px;
         }
 
-        /* Progress indicators */
-        .progress-card {
-            background-color: var(--secondary-bg);
-            border-radius: 10px;
-            padding: 1rem;
-            text-align: center;
-            border: 1px solid var(--border-color);
-        }
-
-        .progress-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: var(--accent-color);
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        /* Code blocks */
+        /* Code Blocks */
         .stCodeBlock {
-            background-color: var(--secondary-bg) !important;
-            border-radius: 8px !important;
-            border: 1px solid var(--border-color) !important;
+            background-color: var(--color-canvas-subtle) !important;
+            border: 1px solid var(--color-border-default) !important;
+            border-radius: 6px !important;
+        }
+
+        /* Progress Bars */
+        .stProgress > div > div {
+            background-color: var(--color-accent-fg) !important;
         }
 
         /* Sidebar */
         .css-1d391kg {
-            background-color: var(--secondary-bg);
+            background-color: var(--color-canvas-subtle);
+            border-right: 1px solid var(--color-border-default);
         }
 
-        /* Custom select boxes */
-        .stSelectbox select {
-            background-color: var(--secondary-bg) !important;
-            color: var(--text-color) !important;
+        /* Inputs */
+        .stTextInput input, .stTextArea textarea {
+            background-color: var(--color-canvas-subtle) !important;
+            border: 1px solid var(--color-border-default) !important;
+            color: var(--color-fg-default) !important;
             border-radius: 6px !important;
-            border: 1px solid var(--border-color) !important;
         }
 
-        /* Tooltips */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            background-color: var(--secondary-bg);
-            color: var(--text-color);
-            text-align: center;
-            padding: 5px 10px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        /* Loading animations */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: var(--accent-color);
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        /* Select boxes */
+        .stSelectbox select {
+            background-color: var(--color-canvas-subtle) !important;
+            border: 1px solid var(--color-border-default) !important;
+            color: var(--color-fg-default) !important;
+            border-radius: 6px !important;
         }
     </style>
     """

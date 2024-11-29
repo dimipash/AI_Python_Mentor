@@ -41,6 +41,7 @@ class PythonLearningApp:
             page_title="Python Learning Assistant",
             page_icon="🐍",
             layout="wide",
+            initial_sidebar_state="expanded"
         )
 
     def _initialize_states(self) -> None:
@@ -279,31 +280,44 @@ class PythonLearningApp:
         st.markdown(
             """
             <div class="nav-container">
-                <a href="/" target="_self" class="nav-link">🏠 Home</a>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h2 style="margin: 0;">🐍 Python Learning Assistant</h2>
+                    </div>
+                    <div>
+                        <a href="/" class="nav-link">Home</a>
+                        <a href="https://github.com/dimipash/AI_Python_Mentor" class="nav-link" target="_blank">GitHub</a>
+                    </div>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
     def render_sidebar(self) -> Tuple[str, str]:
-        """
-        Render sidebar with learning mode and difficulty selection.
-        Returns:
-            Tuple containing selected learning mode and difficulty level
-        """
+        """Render sidebar with learning mode and difficulty selection."""
         with st.sidebar:
+            st.markdown("### Learning Settings")
+            
             learning_mode = st.selectbox(
-                "🎯 Choose Your Learning Mode",
+                "📚 Learning Mode",
                 options=LEARNING_MODES,
                 key="learning_mode_select",
             )
-
+            
+            st.markdown("---")
+            
             difficulty = st.select_slider(
-                "📊 Select Difficulty Level",
+                "🎯 Difficulty Level",
                 options=DIFFICULTY_LEVELS,
                 value="Beginner",
             )
-
+            
+            st.markdown("---")
+            st.markdown("### Quick Stats")
+            st.markdown(f"🎯 Current Level: **{difficulty}**")
+            st.markdown(f"📝 Completed Quizzes: **{len(st.session_state.user_progress['quiz_scores'])}**")
+            
             return learning_mode, difficulty
 
     def handle_chat_mode(self) -> None:
