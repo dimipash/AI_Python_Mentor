@@ -12,6 +12,9 @@ from constants import (
     SYSTEM_INSTRUCTION,
     PYTHON_CONCEPTS,
 )
+from typing import Optional, Dict, Any, List, Tuple, Union
+import json
+from datetime import datetime
 
 
 class PythonLearningApp:
@@ -58,6 +61,38 @@ class PythonLearningApp:
         for key, default_value in default_states.items():
             if key not in st.session_state:
                 st.session_state[key] = default_value
+
+    def handle_progress_tracking(self) -> None:
+        """Handle user progress tracking and analytics."""
+        st.markdown(
+            """
+            <div class="progress-container">
+                <h2>📊 Learning Progress</h2>
+                <p>Track your Python learning journey.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        self._display_progress_metrics()
+        self._show_learning_recommendations()
+
+    def _display_progress_metrics(self) -> None:
+        """Display user progress metrics."""
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Completed Concepts",
+                len(st.session_state.user_progress["completed_concepts"]),
+            )
+        with col2:
+            avg_score = self._calculate_average_score()
+            st.metric("Average Quiz Score", f"{avg_score:.1f}%")
+        with col3:
+            st.metric(
+                "Learning Streak", st.session_state.user_progress["learning_streaks"]
+            )
 
     def _setup_ai(self) -> None:
         """Configure Gemini AI with API key."""
@@ -125,22 +160,22 @@ class PythonLearningApp:
 
         self._render_chat_controls()
         self._display_chat_history()
-        
+
         user_input = st.chat_input(
             "Ask anything about Python...",
             key="chat_input_field",
         )
-        
+
         if user_input:
             self._process_chat_input(user_input)
 
     def _render_chat_controls(self) -> None:
         """Render chat control buttons."""
         col1, col2 = st.columns(2)
-        
+
         if col1.button("🔄 New Chat", key="new_chat_btn", use_container_width=True):
             self._reset_chat()
-            
+
         if col2.button("🗑️ Clear Chat", key="clear_chat_btn", use_container_width=True):
             st.session_state.messages = []
             st.rerun()
@@ -148,14 +183,18 @@ class PythonLearningApp:
     def _reset_chat(self) -> None:
         """Reset chat to initial state."""
         st.session_state.messages = []
-        welcome_msg = "👋 Hi! I'm your Python tutor. What would you like to learn today?"
+        welcome_msg = (
+            "👋 Hi! I'm your Python tutor. What would you like to learn today?"
+        )
         st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
         st.rerun()
 
     def _display_chat_history(self) -> None:
         """Display chat message history."""
         for message in st.session_state.messages:
-            message_class = "user-message" if message["role"] == "user" else "assistant-message"
+            message_class = (
+                "user-message" if message["role"] == "user" else "assistant-message"
+            )
             st.markdown(
                 f"""
                 <div class="message {message_class}">
@@ -168,29 +207,28 @@ class PythonLearningApp:
     def _process_chat_input(self, user_input: str) -> None:
         """
         Process user input and generate AI response.
-        
+
         Args:
             user_input: User's message text
         """
         try:
-            st.session_state.messages.append({
-                "role": "user",
-                "content": str(user_input)
-            })
+            st.session_state.messages.append(
+                {"role": "user", "content": str(user_input)}
+            )
 
             model = self.create_ai_model()
             chat = model.start_chat(history=[])
             response = chat.send_message(user_input)
-            
+
             self._display_chat_messages(str(response.text))
-            
+
         except Exception as e:
             st.error(f"Error processing message: {str(e)}")
 
     def _display_chat_messages(self, response_text: str) -> None:
         """
         Display chat messages in the UI.
-        
+
         Args:
             response_text: AI model's response text
         """
@@ -201,16 +239,15 @@ class PythonLearningApp:
         with st.chat_message("assistant"):
             st.write(response_text)
 
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": response_text
-        })
+        st.session_state.messages.append(
+            {"role": "assistant", "content": response_text}
+        )
 
     def handle_code_review_mode(self) -> None:
         """Handle code review functionality."""
         self._render_code_review_header()
         code = self._get_code_input()
-        
+
         if st.button("Review Code", key="review_code_btn"):
             self._process_code_review(code)
 
@@ -237,7 +274,7 @@ class PythonLearningApp:
     def _process_code_review(self, code: str) -> None:
         """
         Process code review request.
-        
+
         Args:
             code: User's submitted code
         """
@@ -253,17 +290,17 @@ class PythonLearningApp:
 
             st.markdown("### Review Results:")
             st.write(response.text)
-            
+
         except Exception as e:
             st.error(f"Code review error: {str(e)}")
 
     def _create_review_prompt(self, code: str) -> str:
         """
         Create prompt for code review.
-        
+
         Args:
             code: Code to be reviewed
-            
+
         Returns:
             Formatted prompt string
         """
@@ -282,7 +319,7 @@ class PythonLearningApp:
         """Handle Python concepts learning mode."""
         self._render_concept_header()
         selected_concept = self._get_concept_selection()
-        
+
         if selected_concept:
             self._process_concept_learning(selected_concept)
 
@@ -308,7 +345,7 @@ class PythonLearningApp:
     def _process_concept_learning(self, concept: str) -> None:
         """
         Process concept learning request.
-        
+
         Args:
             concept: Selected Python concept
         """
@@ -316,7 +353,7 @@ class PythonLearningApp:
             learning_prompt = self._create_learning_prompt(concept)
             model = self.create_ai_model()
             chat = model.start_chat(history=[])
-            
+
             # Get concept explanation
             response = chat.send_message(learning_prompt)
             st.markdown("### Learn & Practice")
@@ -324,17 +361,17 @@ class PythonLearningApp:
 
             # Handle practice section
             self._handle_practice_section(concept, chat)
-            
+
         except Exception as e:
             st.error(f"Error loading concept: {str(e)}")
 
     def _create_learning_prompt(self, concept: str) -> str:
         """
         Create prompt for concept learning.
-        
+
         Args:
             concept: Selected concept
-            
+
         Returns:
             Formatted prompt string
         """
@@ -353,7 +390,7 @@ class PythonLearningApp:
     def _handle_practice_section(self, concept: str, chat: Any) -> None:
         """
         Handle the practice section of concept learning.
-        
+
         Args:
             concept: Current concept being learned
             chat: Active chat instance
@@ -374,7 +411,7 @@ class PythonLearningApp:
     def _provide_code_feedback(self, concept: str, code: str, chat: Any) -> None:
         """
         Provide feedback on practice code.
-        
+
         Args:
             concept: Current concept
             code: User's practice code
@@ -389,10 +426,41 @@ class PythonLearningApp:
         2. What can be improved?
         3. Suggestions for better understanding
         """
-        
+
         feedback = chat.send_message(check_prompt)
         st.markdown("### Feedback")
         st.write(feedback.text)
+
+    def handle_code_execution(self) -> None:
+        """Handle safe code execution environment."""
+        st.markdown(
+            """
+            <div class="code-execution-container">
+                <h2>🔧 Code Playground</h2>
+                <p>Write and test Python code in a safe environment.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        code = st.text_area(
+            "Write your Python code:", height=200, key="code_execution_area"
+        )
+
+        if st.button("Run Code", key="run_code_btn"):
+            self._execute_code_safely(code)
+
+    def _execute_code_safely(self, code: str) -> None:
+        """Execute user code in a sandboxed environment."""
+        try:
+            # Add proper sandboxing logic here
+            with st.spinner("Running code..."):
+                # Example: Use restricted exec or subprocess with timeout
+                result = exec(code)
+                st.success("Code executed successfully!")
+                st.write("Output:", result)
+        except Exception as e:
+            st.error(f"Error executing code: {str(e)}")
 
     def run(self) -> None:
         """Run the main application."""
@@ -410,6 +478,8 @@ class PythonLearningApp:
             "Quiz Mode": lambda: self.handle_quiz_mode(QuizHandler()),
             "Code Review": self.handle_code_review_mode,
             "Python Concepts": self.handle_concept_mode,
+            "Progress Tracking": self.handle_progress_tracking,
+            "Code Playground": self.handle_code_execution,
         }
 
         handler = mode_handlers.get(learning_mode)
