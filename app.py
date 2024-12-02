@@ -2,7 +2,12 @@ import streamlit as st
 import os
 import pandas as pd
 import google.generativeai as genai
+import logging
+from datetime import datetime
+from typing import Optional, Dict, Any, List, Tuple, Union
+from dataclasses import dataclass
 from dotenv import load_dotenv
+
 from quiz_handler import QuizHandler
 from styles import get_github_dark_theme
 from constants import (
@@ -12,55 +17,39 @@ from constants import (
     SYSTEM_INSTRUCTION,
     PYTHON_CONCEPTS,
 )
-from typing import Optional, Dict, Any, List, Tuple, Union
-import json
-from datetime import datetime
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-class PythonLearningApp:
-    """
-    Main application class for the Python Learning Assistant.
-    Handles all learning modes and UI interactions.
-    """
+@dataclass
+class QuizState:
+    """State management for quiz mode."""
+    active: bool = False
+    current_question: int = 0
+    questions: Optional[List[Dict[str, Any]]] = None
+    score: int = 0
+    total_questions: int = 0
+    answered: bool = False
 
-    def __init__(self) -> None:
-        """Initialize the application with required configurations."""
-        self._setup_environment()
-        self.difficulty = "Beginner"
+    def __post_init__(self):
+        if self.questions is None:
+            self.questions = []
 
-    def _setup_environment(self) -> None:
-        """Set up all necessary configurations and states."""
-        self._configure_page()
-        self._initialize_states()
-        self._setup_ai()
-        self._apply_theme()
+class ProgressTracker:
+    """Handles user progress tracking and analytics"""
+    
+    def __init__(self, session_state):
+        self.session_state = session_state
+        self._initialize_progress()
 
-    def _configure_page(self) -> None:
-        """Configure Streamlit page settings."""
-        st.set_page_config(
-            page_title="Python Learning Assistant",
-            page_icon="🐍",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
-
-    def _initialize_states(self) -> None:
-        """Initialize session state variables."""
-        default_states = {
-            "messages": [],
-            "quiz_state": {
-                "active": False,
-                "current_question": 0,
-                "questions": [],
-                "score": 0,
-                "total_questions": 0,
-                "answered": False,
-            },
-            "page": "home",
-        }
-
-        if "user_progress" not in st.session_state:
-            st.session_state.user_progress = {
+    def _initialize_progress(self) -> None:
+        """Initialize progress tracking data structure"""
+        if "user_progress" not in self.session_state:
+            self.session_state.user_progress = {
                 "completed_concepts": [],
                 "quiz_scores": [],
                 "code_reviews": 0,
@@ -70,12 +59,110 @@ class PythonLearningApp:
                 "learning_activities": [],
             }
 
+    def update_streak(self) -> None:
+        """Update learning streak based on user activity"""
+        today = datetime.now().date()
+        last_active = self.session_state.user_progress["last_active"]
+        
+        if last_active:
+            last_active = datetime.strptime(last_active, "%Y-%m-%d").date()
+            if (today - last_active).days == 1:
+                self.session_state.user_progress["learning_streaks"] += 1
+            elif (today - last_active).days > 1:
+                self.session_state.user_progress["learning_streaks"] = 0
+                
+        self.session_state.user_progress["last_active"] = today.strftime("%Y-%m-%d")
+
+    def log_activity(self, activity_type: str, description: str, **kwargs) -> None:
+        """Log a learning activity with timestamp"""
+        activity = {
+            "type": activity_type,
+            "description": description,
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            **kwargs
+        }
+        self.session_state.user_progress["learning_activities"].append(activity)
+
+class AIManager:
+    """Manages AI-related functionality"""
+    
+    def __init__(self):
+        self._setup_ai()
+
+    def _setup_ai(self) -> None:
+        """Configure AI settings and API key"""
+        try:
+            load_dotenv()
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY not found in environment variables. Please add it to your .env file.")
+            genai.configure(api_key=api_key)
+            logger.info("AI components initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to setup AI: {str(e)}")
+            st.error("Failed to initialize AI components. Please ensure GEMINI_API_KEY is set in your .env file.")
+
+class PythonLearningApp:
+    """
+    Main application class for the Python Learning Assistant.
+    Handles all learning modes and UI interactions.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the application with required configurations"""
+        try:
+            self._setup_environment()
+            self.difficulty = "Beginner"
+            self.progress_tracker = ProgressTracker(st.session_state)
+            self.ai_manager = AIManager()
+        except Exception as e:
+            logger.error(f"Failed to initialize app: {str(e)}")
+            st.error("Failed to initialize the application. Please refresh and try again.")
+
+    def _setup_environment(self) -> None:
+        """Set up all necessary configurations and states"""
+        self._configure_page()
+        self._initialize_states()
+        self._apply_theme()
+
+    def _configure_page(self) -> None:
+        """Configure Streamlit page settings"""
+        st.set_page_config(
+            page_title="Python Learning Assistant",
+            page_icon="🐍",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+
+    def _initialize_states(self) -> None:
+        """Initialize session state variables"""
+        default_states = {
+            "messages": [],
+            "quiz_state": QuizState(),
+            "page": "home",
+            "user_progress": {
+                "completed_concepts": [],
+                "quiz_scores": [],
+                "practice_exercises": 0,
+                "learning_streaks": 0,
+                "learning_activities": [],
+                "last_active": None,
+            }
+        }
+
         for key, default_value in default_states.items():
             if key not in st.session_state:
                 st.session_state[key] = default_value
 
+    def _apply_theme(self) -> None:
+        """Apply custom theme to the application"""
+        try:
+            st.markdown(get_github_dark_theme(), unsafe_allow_html=True)
+        except Exception as e:
+            logger.warning(f"Failed to apply theme: {str(e)}")
+
     def handle_progress_tracking(self) -> None:
-        """Handle user progress tracking and analytics."""
+        """Handle user progress tracking and analytics"""
         st.markdown(
             """
             <div class="progress-container">
@@ -96,7 +183,7 @@ class PythonLearningApp:
         self._show_learning_recommendations()
 
     def _display_progress_metrics(self) -> None:
-        """Display user progress metrics."""
+        """Display user progress metrics"""
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -113,7 +200,7 @@ class PythonLearningApp:
             )
 
     def _display_detailed_analytics(self) -> None:
-        """Display detailed progress analytics."""
+        """Display detailed progress analytics"""
         st.markdown("### 📈 Detailed Analytics")
 
         # Create tabs for different analytics views
@@ -131,7 +218,7 @@ class PythonLearningApp:
             self._display_activity_log()
 
     def _display_learning_history(self) -> None:
-        """Display learning history and trends."""
+        """Display learning history and trends"""
         # Quiz performance over time
         st.subheader("Quiz Performance")
         quiz_scores = st.session_state.user_progress.get("quiz_scores", [])
@@ -150,7 +237,7 @@ class PythonLearningApp:
         st.metric("Total Exercises Completed", exercises)
 
     def _display_concept_mastery(self) -> None:
-        """Display concept mastery progress."""
+        """Display concept mastery progress"""
         st.subheader("Concept Mastery")
 
         completed_concepts = st.session_state.user_progress.get(
@@ -174,7 +261,7 @@ class PythonLearningApp:
             st.write(f"{completed}/{len(concepts)} concepts completed")
 
     def _display_activity_log(self) -> None:
-        """Display recent learning activities."""
+        """Display recent learning activities"""
         st.subheader("Recent Activities")
 
         # Get recent activities from session state
@@ -195,7 +282,7 @@ class PythonLearningApp:
                     st.write(f"**Time Spent:** {activity['time_spent']} minutes")
 
     def _show_learning_recommendations(self) -> None:
-        """Show personalized learning recommendations."""
+        """Show personalized learning recommendations"""
         st.markdown("### 🎯 Recommended Next Steps")
 
         # Calculate recommendations based on progress
@@ -208,7 +295,7 @@ class PythonLearningApp:
                     self._handle_recommendation_action(rec["action"])
 
     def _generate_recommendations(self) -> List[Dict[str, Any]]:
-        """Generate personalized learning recommendations."""
+        """Generate personalized learning recommendations"""
         recommendations = []
         progress = st.session_state.user_progress
 
@@ -240,14 +327,14 @@ class PythonLearningApp:
         return recommendations
 
     def _calculate_average_score(self) -> float:
-        """Calculate average quiz score."""
+        """Calculate average quiz score"""
         scores = st.session_state.user_progress.get("quiz_scores", [])
         if not scores:
             return 0.0
         return sum(score["score"] for score in scores) / len(scores)
 
     def _get_next_recommended_concept(self) -> str:
-        """Get the next recommended concept based on user progress."""
+        """Get the next recommended concept based on user progress"""
         completed = set(st.session_state.user_progress["completed_concepts"])
         all_concepts = set(PYTHON_CONCEPTS)
         remaining = all_concepts - completed
@@ -256,19 +343,20 @@ class PythonLearningApp:
         return list(remaining)[0] if remaining else "Advanced Topics"
 
     def _setup_ai(self) -> None:
-        """Configure Gemini AI with API key."""
+        """Configure Gemini AI with API key"""
         load_dotenv()
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
+            raise ValueError("GEMINI_API_KEY not found in environment variables. Please add it to your .env file.")
         genai.configure(api_key=api_key)
+        logger.info("AI components initialized successfully")
 
     def _apply_theme(self) -> None:
-        """Apply custom styling to the application."""
+        """Apply custom styling to the application"""
         st.markdown(get_github_dark_theme(), unsafe_allow_html=True)
 
     def create_ai_model(self) -> genai.GenerativeModel:
-        """Create and return configured Gemini model instance."""
+        """Create and return configured Gemini model instance"""
         return genai.GenerativeModel(
             model_name="gemini-exp-1114",
             generation_config=GEMINI_CONFIG,
@@ -276,17 +364,18 @@ class PythonLearningApp:
         )
 
     def render_navigation(self) -> None:
-        """Render the navigation bar."""
+        """Render the navigation bar"""
         st.markdown(
             """
             <div class="nav-container">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <h2 style="margin: 0;">🐍 Python Learning Assistant</h2>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <h2 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.5rem;">🐍</span>
+                            <span style="background: linear-gradient(90deg, var(--color-accent-primary), var(--color-accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Python Learning Assistant</span>
+                        </h2>
                     </div>
-                    <div>
-                        <a href="/" class="nav-link">Home</a>
-                        <a href="https://github.com/dimipash/AI_Python_Mentor" class="nav-link" target="_blank">GitHub</a>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
                     </div>
                 </div>
             </div>
@@ -294,34 +383,91 @@ class PythonLearningApp:
             unsafe_allow_html=True,
         )
 
-    def render_sidebar(self) -> Tuple[str, str]:
-        """Render sidebar with learning mode and difficulty selection."""
-        with st.sidebar:
-            st.markdown("### Learning Settings")
+        # Add navigation buttons using Streamlit components
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if st.button("🏠 Home", use_container_width=True):
+                st.session_state.page = "home"
+                st.rerun()
             
-            learning_mode = st.selectbox(
-                "📚 Learning Mode",
-                options=LEARNING_MODES,
-                key="learning_mode_select",
+        with col2:
+            if st.button("📝 Quiz", use_container_width=True):
+                st.session_state.page = "quiz"
+                st.rerun()
+            
+        with col3:
+            if st.button("📊 Progress", use_container_width=True):
+                st.session_state.page = "progress"
+                st.rerun()
+            
+        with col4:
+            st.markdown(
+                """
+                <a href="https://github.com/dimipash/AI_Python_Mentor" target="_blank" style="text-decoration: none;">
+                    <div style="border: 1px solid #565656; border-radius: 4px; padding: 4px 8px; text-align: center;">
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                            <svg height="16" viewBox="0 0 16 16" width="16" style="fill: currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+                            GitHub
+                        </span>
+                    </div>
+                </a>
+                """,
+                unsafe_allow_html=True
             )
-            
-            st.markdown("---")
-            
-            difficulty = st.select_slider(
-                "🎯 Difficulty Level",
-                options=DIFFICULTY_LEVELS,
-                value="Beginner",
-            )
-            
-            st.markdown("---")
-            st.markdown("### Quick Stats")
-            st.markdown(f"🎯 Current Level: **{difficulty}**")
-            st.markdown(f"📝 Completed Quizzes: **{len(st.session_state.user_progress['quiz_scores'])}**")
-            
-            return learning_mode, difficulty
+
+    def run(self) -> None:
+        """Run the main application."""
+        self.render_navigation()
+
+        # Handle page routing
+        if st.session_state.page == "home":
+            self._render_home_page()
+        elif st.session_state.page == "quiz":
+            self._render_quiz_page()
+        elif st.session_state.page == "progress":
+            self._render_progress_page()
+
+    def _render_home_page(self) -> None:
+        """Render the home page"""
+        learning_mode, self.difficulty = self.render_sidebar()
+
+        st.markdown(
+            """
+            <div class="content-card">
+                <h1 style="margin-bottom: 1rem;">Welcome to Python Learning Assistant! 🚀</h1>
+                <p>Choose a learning mode from the sidebar to get started.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Handle different learning modes
+        mode_handlers = {
+            "Chat with Tutor": self.handle_chat_mode,
+            "Quiz Mode": lambda: self.handle_quiz_mode(QuizHandler()),
+            "Code Review": self.handle_code_review_mode,
+            "Python Concepts": self.handle_concept_mode,
+            "Progress Tracking": self.handle_progress_tracking,
+            "Code Playground": self.handle_code_execution,
+        }
+
+        handler = mode_handlers.get(learning_mode)
+        if handler:
+            handler()
+
+    def _render_quiz_page(self) -> None:
+        """Render the quiz page"""
+        self.difficulty = self.render_sidebar()[1]
+        self.handle_quiz_mode(QuizHandler())
+
+    def _render_progress_page(self) -> None:
+        """Render the progress page"""
+        self.difficulty = self.render_sidebar()[1]
+        self.handle_progress_tracking()
 
     def handle_chat_mode(self) -> None:
-        """Handle chat-based learning interactions."""
+        """Handle chat-based learning interactions"""
         st.markdown(
             """
             <div class="chat-container">
@@ -628,51 +774,47 @@ class PythonLearningApp:
         """Execute user code in a sandboxed environment."""
         try:
             # Add proper sandboxing logic here
-            with st.spinner("Running code..."):
-                # Example: Use restricted exec or subprocess with timeout
-                result = exec(code)
-                st.success("Code executed successfully!")
-                st.write("Output:", result)
+            # This is a simplified example
+            result = exec(code)
+            st.success("Code executed successfully!")
+            st.write("Output:", result)
         except Exception as e:
             st.error(f"Error executing code: {str(e)}")
 
-    def run(self) -> None:
-        """Run the main application."""
-        self.render_navigation()
-
-        if st.session_state.page == "home":
-            st.title("🐍 Python Learning Assistant")
-            st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-
-        learning_mode, self.difficulty = self.render_sidebar()
-
-        # Handle different learning modes
-        mode_handlers = {
-            "Chat with Tutor": self.handle_chat_mode,
-            "Quiz Mode": lambda: self.handle_quiz_mode(QuizHandler()),
-            "Code Review": self.handle_code_review_mode,
-            "Python Concepts": self.handle_concept_mode,
-            "Progress Tracking": self.handle_progress_tracking,
-            "Code Playground": self.handle_code_execution,
-        }
-
-        handler = mode_handlers.get(learning_mode)
-        if handler:
-            handler()
-
-    def _update_quiz_progress(self, score: float) -> None:
-        """Update progress after quiz completion."""
-        st.session_state.user_progress["quiz_scores"].append(
-            {"date": datetime.now(), "score": score}
-        )
-        st.session_state.user_progress["learning_activities"].append(
-            {
-                "date": datetime.now(),
-                "type": "Quiz",
-                "description": f"Completed quiz with score {score}%",
-                "score": score,
-            }
-        )
+    def render_sidebar(self) -> Tuple[str, str]:
+        """Render sidebar with learning mode and difficulty selection"""
+        with st.sidebar:
+            st.markdown(
+                '<div style="margin-bottom: 1rem;"><span style="color: var(--color-accent-primary); font-size: 1.2rem;">⚙️ Settings</span></div>',
+                unsafe_allow_html=True
+            )
+            
+            learning_mode = st.selectbox(
+                "📚 Learning Mode",
+                options=LEARNING_MODES,
+                key="learning_mode_select",
+            )
+            
+            st.markdown('<div style="margin: 1.5rem 0 1rem; border-top: 1px solid var(--color-border-muted);"></div>', unsafe_allow_html=True)
+            
+            difficulty = st.select_slider(
+                "🎯 Difficulty Level",
+                options=DIFFICULTY_LEVELS,
+                value="Beginner",
+            )
+            
+            st.markdown('<div style="margin: 1.5rem 0 1rem; border-top: 1px solid var(--color-border-muted);"></div>', unsafe_allow_html=True)
+            
+            st.markdown('<div style="color: var(--color-accent-secondary); font-size: 1.2rem; margin-bottom: 1rem;">📊 Stats</div>', unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f'<div style="color: var(--color-accent-primary);">Level</div><div style="font-size: 1.1rem; font-weight: 600;">{difficulty}</div>', unsafe_allow_html=True)
+            with col2:
+                quiz_count = len(st.session_state.user_progress['quiz_scores'])
+                st.markdown(f'<div style="color: var(--color-accent-primary);">Quizzes</div><div style="font-size: 1.1rem; font-weight: 600;">{quiz_count}</div>', unsafe_allow_html=True)
+            
+            return learning_mode, difficulty
 
     def handle_quiz_mode(self, quiz_handler: QuizHandler) -> None:
         """Handle quiz mode functionality."""
@@ -686,57 +828,74 @@ class PythonLearningApp:
             unsafe_allow_html=True,
         )
 
-        if not st.session_state.quiz_state["active"]:
+        if not st.session_state.quiz_state.active:
             self._setup_new_quiz(quiz_handler)
         else:
             self._handle_active_quiz(quiz_handler)
 
     def _setup_new_quiz(self, quiz_handler: QuizHandler) -> None:
         """Setup a new quiz session."""
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            num_questions = st.number_input(
-                "Number of Questions",
-                min_value=1,
-                max_value=20,
-                value=5
-            )
-        
-        with col2:
-            topics = st.multiselect(
-                "Select Topics",
-                options=PYTHON_CONCEPTS,
-                default=["Variables & Data Types"]  # Match the exact string from constants
-            )
-
-        if st.button("Start Quiz", key="start_quiz_btn"):
-            questions = quiz_handler.generate_questions(
-                num_questions=num_questions,
-                topics=topics,
-                difficulty=self.difficulty
-            )
+        try:
+            col1, col2 = st.columns(2)
             
-            st.session_state.quiz_state = {
-                "active": True,
-                "current_question": 0,
-                "questions": questions,
-                "score": 0,
-                "total_questions": num_questions,
-                "answered": False
-            }
-            st.rerun()
+            with col1:
+                num_questions = st.number_input(
+                    "Number of Questions",
+                    min_value=1,
+                    max_value=20,
+                    value=5
+                )
+            
+            with col2:
+                available_topics = quiz_handler.get_topics(self.difficulty)
+                if not available_topics:
+                    st.error(f"No quiz topics available for {self.difficulty} level")
+                    return
+                
+                topics = st.multiselect(
+                    "Select Topics",
+                    options=available_topics,
+                    default=[available_topics[0]] if available_topics else None
+                )
+
+            if not topics:
+                st.warning("Please select at least one topic")
+                return
+
+            if st.button("Start Quiz", key="start_quiz_btn"):
+                questions = quiz_handler.generate_questions(
+                    num_questions=num_questions,
+                    topics=topics,
+                    difficulty=self.difficulty
+                )
+                
+                if not questions:
+                    st.error("Could not generate questions. Please try different topics or difficulty level.")
+                    return
+                
+                st.session_state.quiz_state = QuizState(
+                    active=True,
+                    current_question=0,
+                    questions=questions,
+                    score=0,
+                    total_questions=len(questions),
+                    answered=False
+                )
+                st.rerun()
+        except Exception as e:
+            logger.error(f"Failed to setup quiz: {str(e)}")
+            st.error("Failed to setup quiz. Please try again.")
 
     def _handle_active_quiz(self, quiz_handler: QuizHandler) -> None:
         """Handle an active quiz session."""
         current_state = st.session_state.quiz_state
-        current_q = current_state["current_question"]
-        questions = current_state["questions"]
+        current_q = current_state.current_question
+        questions = current_state.questions
 
         # Display progress
-        progress = (current_q + 1) / current_state["total_questions"]
+        progress = (current_q + 1) / current_state.total_questions
         st.progress(progress)
-        st.write(f"Question {current_q + 1} of {current_state['total_questions']}")
+        st.write(f"Question {current_q + 1} of {current_state.total_questions}")
 
         # Display current question
         if current_q < len(questions):
@@ -750,8 +909,8 @@ class PythonLearningApp:
                 self._handle_coding_question(question)
 
             # Show next question button if answered
-            if current_state["answered"]:
-                if current_q + 1 < current_state["total_questions"]:
+            if current_state.answered:
+                if current_q + 1 < current_state.total_questions:
                     if st.button("Next Question", key="next_question_btn"):
                         self._next_question()
                 else:
@@ -759,31 +918,31 @@ class PythonLearningApp:
 
     def _handle_multiple_choice(self, question: Dict[str, Any]) -> None:
         """Handle multiple choice question type."""
-        if not st.session_state.quiz_state["answered"]:
+        if not st.session_state.quiz_state.answered:
             selected_answer = st.radio(
                 "Choose your answer:",
                 options=question["options"],
-                key=f"quiz_answer_{st.session_state.quiz_state['current_question']}"
+                key=f"quiz_answer_{st.session_state.quiz_state.current_question}"
             )
 
             if st.button("Submit Answer", key="submit_answer_btn"):
                 correct = selected_answer == question["correct_answer"]
                 if correct:
                     st.success("Correct! 🎉")
-                    st.session_state.quiz_state["score"] += 1
+                    st.session_state.quiz_state.score += 1
                 else:
                     st.error(f"Incorrect. The correct answer was: {question['correct_answer']}")
                 
-                st.session_state.quiz_state["answered"] = True
+                st.session_state.quiz_state.answered = True
                 st.rerun()
 
     def _handle_coding_question(self, question: Dict[str, Any]) -> None:
         """Handle coding question type."""
-        if not st.session_state.quiz_state["answered"]:
+        if not st.session_state.quiz_state.answered:
             user_code = st.text_area(
                 "Write your code here:",
                 height=200,
-                key=f"quiz_code_{st.session_state.quiz_state['current_question']}"
+                key=f"quiz_code_{st.session_state.quiz_state.current_question}"
             )
 
             if st.button("Submit Code", key="submit_code_btn"):
@@ -791,11 +950,11 @@ class PythonLearningApp:
                 is_correct = self._evaluate_code(user_code, question["test_cases"])
                 if is_correct:
                     st.success("Correct! Your code passed all test cases! 🎉")
-                    st.session_state.quiz_state["score"] += 1
+                    st.session_state.quiz_state.score += 1
                 else:
                     st.error("Your code didn't pass all test cases. Try again!")
                 
-                st.session_state.quiz_state["answered"] = True
+                st.session_state.quiz_state.answered = True
                 st.rerun()
 
     def _evaluate_code(self, user_code: str, test_cases: List[Dict[str, Any]]) -> bool:
@@ -810,14 +969,14 @@ class PythonLearningApp:
 
     def _next_question(self) -> None:
         """Move to the next question."""
-        st.session_state.quiz_state["current_question"] += 1
-        st.session_state.quiz_state["answered"] = False
+        st.session_state.quiz_state.current_question += 1
+        st.session_state.quiz_state.answered = False
         st.rerun()
 
     def _show_quiz_results(self) -> None:
         """Show final quiz results."""
-        score = st.session_state.quiz_state["score"]
-        total = st.session_state.quiz_state["total_questions"]
+        score = st.session_state.quiz_state.score
+        total = st.session_state.quiz_state.total_questions
         percentage = (score / total) * 100
 
         st.markdown("## Quiz Complete! 🎉")
@@ -827,10 +986,14 @@ class PythonLearningApp:
         self._update_quiz_progress(percentage)
 
         if st.button("Start New Quiz", key="new_quiz_btn"):
-            st.session_state.quiz_state["active"] = False
+            st.session_state.quiz_state.active = False
             st.rerun()
 
 
 if __name__ == "__main__":
-    app = PythonLearningApp()
-    app.run()
+    try:
+        app = PythonLearningApp()
+        app.run()
+    except Exception as e:
+        logger.critical(f"Fatal application error: {str(e)}")
+        st.error("Failed to start the application. Please check the logs and try again.")
