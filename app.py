@@ -357,10 +357,11 @@ class PythonLearningApp:
 
     def create_ai_model(self) -> genai.GenerativeModel:
         """Create and return configured Gemini model instance"""
+        system_instruction_string = " ".join(SYSTEM_INSTRUCTION.values())
         return genai.GenerativeModel(
             model_name="gemini-exp-1114",
             generation_config=GEMINI_CONFIG,
-            system_instruction=SYSTEM_INSTRUCTION,
+            system_instruction=system_instruction_string,
         )
 
     def render_navigation(self) -> None:
@@ -972,6 +973,23 @@ class PythonLearningApp:
         st.session_state.quiz_state.current_question += 1
         st.session_state.quiz_state.answered = False
         st.rerun()
+
+    def _update_quiz_progress(self, percentage: float) -> None:
+        """Update quiz progress in the user's progress tracker."""
+        try:
+            # Log the quiz score
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            st.session_state.user_progress["quiz_scores"].append({"date": current_date, "score": percentage})
+
+            # Add any additional logic for tracking quiz stats here
+            self.progress_tracker.log_activity(
+                activity_type="Quiz Completed",
+                description=f"Completed a quiz with a score of {percentage:.1f}%",
+                score=percentage
+            )
+        except Exception as e:
+            logger.error(f"Failed to update quiz progress: {str(e)}")
+            st.error("An error occurred while updating quiz progress.")
 
     def _show_quiz_results(self) -> None:
         """Show final quiz results."""
